@@ -1,22 +1,118 @@
 ---
 title: "Coursera Machine Learning HAR"
 author: "Thomas Favre-Bulle"
-date: "24 octobre 2014"
+date: "October 26, 2014"
 output: html_document
 ---
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+In the paper exposing the study where the data comes from, Velloso et al use average, variange, maximum and range as best features for prediction. In the present study, however, this data is very sparse in the training set, and absent of the testing set. Therefore, the present study has to rely on instantaneous measurements only to assess the quality of an exercise.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+Note: for reading convenience, libraries and data downloading code and charging is not displayed. Please see original Rmd file.
 
-```{r}
-summary(cars)
+```{r download-load, results="hide", echo=FALSE}
+# Load libraries
+library(caret)
+library(rattle)
+library(rpart)
+library(randomForest)
+library(ggplot2)
+
+# Download the data
+d <- FALSE
+if(d){
+  trainUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+  download.file(trainUrl, destfile="data/training.csv", method="curl")
+  dateDownloaded <- date()
+  write(dateDownloaded,file="data/training.csv.date.txt")
+  
+  testUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+  download.file(testUrl, destfile="data/testing.csv", method="curl")
+  dateDownloaded <- date()
+  write(dateDownloaded,file="data/testing.csv.date.txt")
+  }
+
+# Load the data
+training <- read.csv("data/training.csv")
+testing <- read.csv("data/testing.csv")
 ```
 
-You can also embed plots, for example:
+First, we clean the data to retain only columns corresponding to instantaneous measurements, excluding statistics columns surch as average, skewness or amplitude. These columns are easilly spotted because their name all start by an abbreviation of the said statistics. We also remove columns measuring index, time and subject. Finally, we check that all remaining variables have significant variance (not near zero), because a feature with zero variance is of no use for prediction.
 
-```{r, echo=FALSE}
-plot(cars)
+```{r clean-data}
+# Remove statistic values (average, variance, min, max...)
+statstr <- c("max", "min", "skewness", "amplitude", "var", "total", "avg", "stddev", "kurtosis")
+
+training2 <- training
+for(str in statstr) {
+  training2 <- training2[,grep(paste("^",str,sep="") , names(training2), value=TRUE, invert = TRUE)]
+}
+
+# Remove first columns, non measurements
+training2 <- training2[,-c(1:7)]
+
+# Check for near zero variance variables: there is none
+trainNzv <- nearZeroVar(training2, saveMetrics=TRUE)
+sum(trainNzv$nzv)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+The prediction is a classification problem: we need to classify the data in classes of either well performed exercize (A), or badly performed exercize (B,C,D and E). Because the output is not linear, we use a classification algorithm based on tree, and not a linear model algorithm.
+
+To get an idea of the important predictors, we first produce a simple tree prediction model, and visualize the points of divergence between classes:
+
+```{r model-rpart}
+# With caret, produce the tree model
+modFitRpart <- train(classe ~., method="rpart",data=training2)
+
+# Visualize the tree to highlight the variables of importance
+fancyRpartPlot(modFitRpart$finalModel)
+
+# Summary of the model
+modFitRpart
+```
+
+We note that the important measures are roll of the belt censor, pitch of the forearm censor, vertical position of the dumbbell censor and roll of the forearm censor. The higher the decision is made in the tree, the easier it is to recognize an error, because less information is needed. For instance, class E error (throwing the hips to the front) is the easiest to recognize instantly, while class C (lifting the dumbbell only halfway) is the hardest. Accuracy of this simple tree model is low (≈ 0.5).
+
+To improve prediction performance, we create a new prediction model based on random forest:
+
+```{r random-forest}
+# Random forest model
+modFitRf <- randomForest(classe ~., data = training2)
+```
+
+We examine the importance of variable in the forest, regarding mean decrease in node impurity. Roll of belt censor is still the most important variable. Overall, variables identified as important in the single tree model are still high in the ranking of importance. 
+
+```{r variable-importance}
+varImpRf <- as.data.frame(importance(modFitRf, type = 2))
+varImpRf$variable <- rownames(varImpRf)
+row.names(varImpRf) <- NULL
+head(varImpRf[order(-varImpRf[,1]),])
+```
+
+The distribution of variables of importance demonstrate a power distribution, with many variables of little importance and a limited number of variables of great importance.
+
+```{r distribution-importance}
+qplot(MeanDecreaseGini, data=varImpRf, geom="histogram")
+```
+
+Random forest includes a form of cross-validation in the out-of-bag (OOB) estimate of error rate, because each tree uses a different bootstrap sample from the training data. The OOB estimate of error rate for this model is low (≈ 0.3%). It is therefore expected that very few cases will be misclassified on a new testing set.
+
+As a conclusion, the random forest algorithm indeed classified correctly 100% of the testing cases in the prediction assignment.
+
+```{r summary-rf}
+modFitRf
+```
+
+```{r predict-test, echo=FALSE, results='hide'}
+answers = predict(modFitRf, newdata=testing)
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(answers)
+
+```
