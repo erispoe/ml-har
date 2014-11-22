@@ -1,11 +1,11 @@
 ---
 title: "Coursera Machine Learning HAR"
 author: "Thomas Favre-Bulle"
-date: "October 26, 2014"
+date: "November 22, 2014"
 output: html_document
 ---
 
-This study explores classification of execution quality for Unilateral Dumbbell Biceps Curls. The exercize can be well-executed (class A), or executed with various mistakes (classes B, C, D and E). To measure body movements, captors are places in the bell, glove, arm-band and the dumbell itself. In the original paper, Velloso et al use statistics of captor data like average, variance, maximum or range as best features for prediction. In the present study, however, this data is very sparse in the training set, and absent of the testing set. Therefore, the present study has to rely on instantaneous measurements only to assess the quality of an exercise.
+This study explores classification of execution quality for Unilateral Dumbbell Biceps Curls. The exercize can be well-executed (class A), or executed with various mistakes (classes B, C, D and E). To measure body movements, captors are places in the belt, glove, arm-band and the dumbell itself. In the original paper, Velloso et al use statistics of captor data like average, variance, maximum or range as best features for prediction. In the present study, however, this data is very sparse in the training set, and absent of the testing set. Therefore, the present study has to rely on instantaneous measurements only to assess the quality of an exercise.
 
 Note: for reading convenience, libraries and data downloading code and charging is not displayed. Please see original Rmd file.
 
